@@ -1,0 +1,72 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Deploy Flutter Web to AWS Lightsail
+
+on:
+  push:
+    branches:
+      - feature/conditional-ui
+
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Download project source code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Install Flutter
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # 3. Install project dependencies
+      - name: Install Dependencies
+        run: flutter pub get
+
+      # 4. Build Flutter Web
+      - name: Build Flutter Web
+        run: flutter build web --release
+
+      # 5. Configure SSH authentication
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+
+      # 6. Prepare SSH connection
+      - name: Configure SSH
+        env:
+          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          PORT: ${{ secrets.LIGHTSAIL_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          ssh-keyscan -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts
+
+          chmod 600 ~/.ssh/known_hosts
+
+      # 7. Transfer build files to Lightsail
+      - name: Deploy to Lightsail
+        env:
+          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          PORT: ${{ secrets.LIGHTSAIL_PORT }}
+          USER: ${{ secrets.LIGHTSAIL_USER }}
+        run: |
+          rsync -avz --delete \
+            -e "ssh -p $PORT" \
+            build/web/ \
+            $USER@$HOST:/var/www/Latest Flutter Project/
+
+      # 8. Deployment complete
+      - name: Deployment Complete
+        run: echo "Successfully deployed to AWS Lightsail!"
+        run: |
+          echo Add other actions to build,
+          echo test, and deploy your project.
