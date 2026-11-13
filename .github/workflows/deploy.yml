@@ -1,0 +1,43 @@
+
+name: Deploy Flutter Web to Lightsail
+
+on:
+  push:
+    branches:
+      - feature/conditional-ui
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        working-directory: Flutter Projects/my_first_flutter_app
+        run: flutter pub get
+
+      - name: Build Flutter Web
+        working-directory: Flutter Projects/my_first_flutter_app
+        run: flutter build web --release
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/lightsail_key
+          chmod 600 ~/.ssh/lightsail_key
+          ssh-keyscan -p "${{ secrets.LIGHTSAIL_PORT }}" "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy to Lightsail
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/lightsail_key -p ${{ secrets.LIGHTSAIL_PORT }}" \
+            "Flutter Projects/my_first_flutter_app/build/web/" \
+            "${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}:/var/www/html/"
